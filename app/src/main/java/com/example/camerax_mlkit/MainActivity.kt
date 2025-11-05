@@ -79,13 +79,18 @@ class MainActivity : AppCompatActivity() {
 
             Log.d(TAG, "PAY_PROMPT(broadcast) → reason=$reason geo=$geo beacon=$beacon wifi=$wifi fence=$fenceId")
 
-            // ✅ plainCamera 모드에선 라우팅 금지
+            // 🔒 BT OFF면 라우팅 금지
+            if (!isBtOn()) {
+                showBtOnlyDialog()
+                return
+            }
+            // 🔒 plainCamera는 라우팅 금지
             if (plainCameraMode) return
 
-            // ✅ 후보 집계/선택은 라우터가 담당
             routeToStoreSelection(reason, geo, beacon, wifi, fenceId)
         }
     }
+
 
     /** BT/GPS 상태 변경 감지 → 켜졌을 때 다시 라우팅 */
     private val stateReceiver = object : BroadcastReceiver() {
@@ -223,9 +228,35 @@ class MainActivity : AppCompatActivity() {
         registerReceiver(stateReceiver, sf)
     }
 
+    // BT 전용 차단 다이얼로그 (선택지: 블루투스 켜기만)
+    private fun showBtOnlyDialog() {
+        if (payChoiceDialogShowing) return
+        payChoiceDialogShowing = true
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("결제를 진행하려면 블루투스를 켜주세요.")
+            .setMessage("블루투스가 꺼져 있어 QR 결제를 진행할 수 없습니다.")
+            .setPositiveButton("활성화") { d, _ ->
+                openBluetoothEnableScreen()
+                d.dismiss()
+            }
+            .setNegativeButton("취소") { d, _ -> d.dismiss() }
+            .setOnDismissListener { payChoiceDialogShowing = false }
+            .create()
+
+        dialog.show()
+
+    }
+
     override fun onResume() {
         super.onResume()
         TriggerGate.onAppResumed(applicationContext)
+
+        // ✅ plain 카메라 모드가 아닐 때, BT OFF면 즉시 요구
+        if (!plainCameraMode && !isBtOn()) {
+            // 라우팅/자동동작보다 먼저 가로채기
+            showBtOnlyDialog()
+            return
+        }
         scheduleInitialRoutingIfNeeded()
     }
 
@@ -284,6 +315,13 @@ class MainActivity : AppCompatActivity() {
 
                 // 3) 정상 컨텍스트면 결제 플로우
                 if (!scannerOnlyMode && !TriggerGate.allowedForQr()) return@MlKitAnalyzer
+
+                // ✅ 최종 하드 게이트: BT가 꺼져 있으면 결제로 절대 진입 금지
+                if (!isBtOn()) {
+                    showBtOnlyDialog()   // ← 아래 #3 새 함수
+                    return@MlKitAnalyzer
+                }
+
                 startPaymentPrompt(raw)
             }
         )
@@ -376,12 +414,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun startPaymentPrompt(qrCode: String) {
         if (plainCameraMode) return
+
+        // ✅ BT OFF면 결제 화면 진입 자체 차단
+        if (!isBtOn()) {
+            showBtOnlyDialog()
+            return
+        }
+
         startActivity(
             Intent(this, PaymentPromptActivity::class.java)
                 .putExtra(PaymentPromptActivity.EXTRA_QR_CODE, qrCode)
                 .putExtra(PaymentPromptActivity.EXTRA_TRIGGER, "USER")
         )
     }
+
 
     private fun isUrl(s: String): Boolean =
         s.startsWith("http://", true) || s.startsWith("https://", true)
@@ -459,6 +505,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun routeToStoreSelectionSoon(reason: String) {
         if (plainCameraMode) return
+
+        // 🔒 BT OFF or GPS OFF면 라우팅 금지
+        if (!isBtOn() || !isLocationEnabled()) {
+            if (!isBtOn()) showBtOnlyDialog()
+            return
+        }
+
         isRouting = true
         viewBinding.root.postDelayed({
             try {
@@ -475,6 +528,7 @@ class MainActivity : AppCompatActivity() {
         }, 500L)
     }
 
+
     private fun routeToStoreSelection(
         reason: String,
         geo: Boolean,
@@ -483,6 +537,13 @@ class MainActivity : AppCompatActivity() {
         fenceId: String
     ) {
         if (plainCameraMode) return
+
+        // 🔒 마지막 관문: BT/GPS 검증
+        if (!isBtOn() || !isLocationEnabled()) {
+            if (!isBtOn()) showBtOnlyDialog()
+            return
+        }
+
         startActivity(
             Intent(this@MainActivity, StoreSelectRouterActivity::class.java).apply {
                 putExtra(PaymentPromptActivity.EXTRA_TRIGGER, reason)
@@ -494,6 +555,7 @@ class MainActivity : AppCompatActivity() {
             }
         )
     }
+
 
     // ───────── Geofence helpers ─────────
     private fun ensureLocationSettings(onReady: () -> Unit) {
