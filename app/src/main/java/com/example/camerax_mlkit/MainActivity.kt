@@ -38,6 +38,8 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import android.content.ContentValues
 import android.annotation.SuppressLint
+import com.google.android.material.dialog.MaterialAlertDialogBuilder // 상단에 import 추가
+import androidx.appcompat.app.AlertDialog
 
 class MainActivity : AppCompatActivity() {
 
@@ -232,7 +234,8 @@ class MainActivity : AppCompatActivity() {
     private fun showBtOnlyDialog() {
         if (payChoiceDialogShowing) return
         payChoiceDialogShowing = true
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+        // ▼ 수정된 부분: MaterialAlertDialogBuilder 사용
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle("결제를 진행하려면 블루투스를 켜주세요.")
             .setMessage("블루투스가 꺼져 있어 QR 결제를 진행할 수 없습니다.")
             .setPositiveButton("활성화") { d, _ ->
@@ -244,6 +247,19 @@ class MainActivity : AppCompatActivity() {
             .create()
 
         dialog.show()
+
+        // ▼ 추가된 주석:
+        // MaterialAlertDialogBuilder를 사용하면 버튼 색상이 테마(아마도 colorPrimary)에 맞게
+        // 자동으로 설정될 수 있습니다.
+        // 만약 빌더 변경 후 버튼이 잘 보인다면, 아래의 색상 강제 지정 코드는 제거해도 좋습니다.
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.let { btn ->
+            btn.isAllCaps = false
+            btn.setTextColor(ContextCompat.getColor(this, android.R.color.black)) // 필요 색상으로
+        }
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.let { btn ->
+            btn.isAllCaps = false
+            btn.setTextColor(ContextCompat.getColor(this, android.R.color.black))
+        }
 
     }
 
