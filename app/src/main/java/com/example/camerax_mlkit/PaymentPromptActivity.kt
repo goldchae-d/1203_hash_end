@@ -300,6 +300,9 @@ class PaymentPromptActivity : AppCompatActivity() {
                         return@addOnSuccessListener
                     }
 
+                    // 🔍 해시 디버그 로그: raw / hash / 화이트리스트 매칭 여부
+                    QrRawWhitelist.debugLog(raw)
+
                     // 0) 공격 시연용 우회(필요 시에만 true로) — 기본 false 권장
                     if (ALLOW_UI_SWAP_BYPASS) {
                         dialog.dismiss()
